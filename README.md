@@ -1,6 +1,11 @@
-# cse291virproj
+## Requirements:
+    Flask
+    Tensorflow 1.13
+    OpenCV
 
 ## Installing Steps
-    conda create --name virt291
-    conda activate virt291
-    pip3 install -r requirements.txt
+
+    conda create --name deepeye_env
+    conda activate deepeye_env
+    conda install tensorflow=1.13.1
+    conda install opencv
