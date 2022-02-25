@@ -9,3 +9,4 @@
     conda activate deepeye_env
     conda install tensorflow=1.13.1
     conda install opencv
+    conda install memory_profiler
