@@ -1,0 +1,176 @@
+Line #    Mem usage    Increment  Occurences   Line Contents
+============================================================
+   155    128.9 MiB    128.9 MiB           1       @profile
+   156                                             def __init__(self, deep=2, layers=16, model='/models/default.ckpt'):
+   157
+   158    132.2 MiB      3.3 MiB           1           self.sess = tf.Session()
+   159
+   160    132.5 MiB      0.3 MiB           1           self.frame_input = tf.placeholder(tf.uint8, [288, 384])
+   161
+   162    132.7 MiB      0.2 MiB           1           input_reshaped_casted = tf.cast(self.frame_input, tf.float32) * (1. / 255)
+   163
+   164    132.7 MiB      0.0 MiB           1           deepupil_network = Network('Deep_eye', input_reshaped_casted, 1, is_training=False, reuse=False, deep=deep,
+   165    154.5 MiB     21.8 MiB           1                                      layers=layers)
+   166
+   167    158.0 MiB      3.5 MiB           1           saver = tf.train.Saver(max_to_keep=0)
+   168
+   169    158.0 MiB      0.0 MiB           1           self.prob_mask = tf.nn.softmax(deepupil_network.output)
+   170
+   171    177.1 MiB     19.1 MiB           1           saver.restore(self.sess, str(pathlib.Path(__file__).parent) + model)
+   172    177.1 MiB      0.0 MiB           1           print("Model restored.")
+
+
+Filename: D:\Files\CSE 291\vir291proj\local\deepeye.py
+
+Line #    Mem usage    Increment  Occurences   Line Contents
+============================================================
+   174    189.1 MiB    189.1 MiB           1       @profile
+   175                                             def blob_location(self, prob_mask):
+   176
+   177    189.1 MiB      0.0 MiB           1           factor = prob_mask.size / (288.0 * 384.0)
+   178
+   179    189.1 MiB      0.0 MiB           1           params = cv2.SimpleBlobDetector_Params()
+   180
+   181    189.1 MiB      0.0 MiB           1           params.filterByArea = True
+   182    189.1 MiB      0.0 MiB           1           params.minArea = 100 * factor
+   183    189.1 MiB      0.0 MiB           1           params.maxArea = 25000 * factor
+   184
+   185    189.1 MiB      0.0 MiB           1           params.filterByConvexity = True
+   186    189.1 MiB      0.0 MiB           1           params.minConvexity = 0.1
+   187
+   188    189.1 MiB      0.0 MiB           1           detector = cv2.SimpleBlobDetector_create(params)
+   189
+   190    189.1 MiB      0.0 MiB           1           found_blob = False
+   191    189.1 MiB      0.0 MiB           1           prob = 0.3 # 0.5
+   192    189.1 MiB      0.0 MiB           1           raw_img = prob_mask.copy()
+   193    190.4 MiB      0.0 MiB           2           while found_blob == False:
+   194    189.1 MiB      0.0 MiB           1               image = raw_img.copy()
+   195    189.1 MiB      0.0 MiB           1               image[image < prob] = 0
+   196    189.1 MiB      0.0 MiB           1               image[image > prob] = 1
+   197    189.6 MiB      0.5 MiB           1               image = (image * 255).astype('uint8')
+   198    189.8 MiB      0.1 MiB           1               image = 255 - image
+   199    190.3 MiB      0.6 MiB           1               keypoints = detector.detect(image)
+   200
+   201    190.3 MiB      0.0 MiB           1               if len(keypoints) > 0:
+   202
+   203    190.3 MiB      0.0 MiB           1                   blob_sizes = []
+   204    190.3 MiB      0.0 MiB           2                   for k in keypoints:
+   205    190.3 MiB      0.0 MiB           1                       blob_sizes.append(k.size)
+   206    190.4 MiB      0.0 MiB           1                   detection = np.argmax(np.asarray(blob_sizes))
+   207    190.4 MiB      0.0 MiB           1                   out_coordenate = [int(keypoints[detection].pt[0]), int(keypoints[detection].pt[1])]
+   208    190.4 MiB      0.0 MiB           1                   found_blob = True
+   209                                                     else:
+   210                                                         out_coordenate = [0, 0]
+   211                                                         found_blob = False
+   212                                                         prob += -0.05
+   213                                                         if prob < 0.05:
+   214                                                             found_blob = True
+   215
+   216    190.4 MiB      0.0 MiB           1           return (out_coordenate, image)
+
+
+Filename: D:\Files\CSE 291\vir291proj\local\deepeye.py
+
+Line #    Mem usage    Increment  Occurences   Line Contents
+============================================================
+   218    179.1 MiB    179.1 MiB           1       @profile
+   219                                             def run(self, frame):
+   220
+   221    179.1 MiB      0.0 MiB           1           if frame.shape != (288, 384):
+   222
+   223    179.1 MiB      0.0 MiB           1               orig_size = frame.shape
+   224
+   225    179.3 MiB      0.2 MiB           1               frame = cv2.resize(frame, (384, 288), cv2.INTER_LINEAR)
+   226    179.3 MiB      0.0 MiB           1               prob_mask = self.sess.run(
+   227    179.3 MiB      0.0 MiB           1                   self.prob_mask,
+   228    188.3 MiB      8.9 MiB           1                   feed_dict={self.frame_input: frame})
+   229
+   230    189.1 MiB      0.8 MiB           1               prob_mask = cv2.resize(prob_mask[0, :, :, 0], (orig_size[1], orig_size[0]), cv2.INTER_LINEAR)
+   231                                                 else:
+   232
+   233                                                     prob_mask = self.sess.run(
+   234                                                         self.prob_mask,
+   235                                                         feed_dict={self.frame_input: frame})
+   236
+   237                                                     prob_mask = prob_mask[0:, :, 0]
+   238
+   239    190.4 MiB      1.3 MiB           1           return self.blob_location(prob_mask)
+
+
+Filename: D:\Files\CSE 291\vir291proj\local\deepeye.py
+
+Line #    Mem usage    Increment  Occurences   Line Contents
+============================================================
+   247    177.1 MiB    177.1 MiB           1       @profile
+   248                                             def processSingleImage(self, npimg):
+   249                                                 #img_data = base64.b64decode(image_encoded_data)
+   250                                                 #npimg = np.frombuffer(img_data, dtype=np.uint8)
+   251    178.6 MiB      1.5 MiB           1           frame = cv2.imdecode(npimg, cv2.IMREAD_UNCHANGED)
+   252
+   253    179.0 MiB      0.4 MiB           1           frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+   254
+   255                                                 # PUPIL!!!
+   256    190.4 MiB     11.4 MiB           1           (coords, bw_img) = self.run(frame_gray)
+   257                                                 # contours, _ = cv2.findContours(bw_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+   258    190.4 MiB      0.0 MiB           1           _, contours, _ = cv2.findContours(bw_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+   259    190.4 MiB      0.0 MiB           1           contours_poly = [None] * len(contours)
+   260    190.4 MiB      0.0 MiB           1           boundRect = [None] * len(contours)
+   261    190.4 MiB      0.0 MiB           1           centers = [[]] * len(contours)
+   262    190.4 MiB      0.0 MiB           1           pupilRadiuses = [0] * len(contours)
+   263
+   264    190.4 MiB      0.0 MiB           3           for i, c in enumerate(contours):
+   265    190.4 MiB      0.0 MiB           2               contours_poly[i] = cv2.approxPolyDP(c, 3, True)
+   266    190.4 MiB      0.0 MiB           2               boundRect[i] = cv2.boundingRect(contours_poly[i])
+   267    190.4 MiB      0.0 MiB           2               centers[i], pupilRadiuses[i] = cv2.minEnclosingCircle(contours_poly[i])
+   268
+   269    190.4 MiB      0.0 MiB           1           pupilX = pupilY = pupilR = float('-inf')
+   270    190.4 MiB      0.0 MiB           3           for i in range(len(contours)):
+   271    190.4 MiB      0.0 MiB           2               if 2 * pupilRadiuses[i] > bw_img.shape[1] / 2:
+   272                                                         # filter big diameter
+   273    190.4 MiB      0.0 MiB           1                   continue
+   274    190.4 MiB      0.0 MiB           1               if pupilRadiuses[i] > pupilR:
+   275    190.4 MiB      0.0 MiB           1                   pupilX = int(centers[i][0])
+   276    190.4 MiB      0.0 MiB           1                   pupilY = int(centers[i][1])
+   277    190.4 MiB      0.0 MiB           1                   pupilR = int(pupilRadiuses[i])
+   278    190.4 MiB      0.0 MiB           1           pupilX = -1 if pupilX == float('-inf') else pupilX
+   279    190.4 MiB      0.0 MiB           1           pupilY = -1 if pupilY == float('-inf') else pupilY
+   280    190.4 MiB      0.0 MiB           1           pupilR = -1 if pupilR == float('-inf') else pupilR
+   281
+   282                                                 # IRIS!!!!!
+   283    190.4 MiB      0.0 MiB           1           irisCannyThreshold = 60
+   284    190.4 MiB      0.0 MiB           1           irisAccumulatorThreshold = 40
+   285    190.4 MiB      0.0 MiB           1           irisRadMin = 3 * int(frame_gray.shape[1] / 40)
+   286    190.4 MiB      0.0 MiB           1           irisRadMax = 10 * int(frame_gray.shape[1] / 40)
+   287    190.5 MiB      0.1 MiB           1           irisCircles = cv2.HoughCircles(cv2.cvtColor(cv2.medianBlur(frame,5), cv2.COLOR_BGR2GRAY), cv2.HOUGH_GRADIENT, 1, 1,
+   288    187.3 MiB     -3.2 MiB           1                                     param1=irisCannyThreshold, param2=irisAccumulatorThreshold, minRadius=irisRadMin, maxRadius=irisRadMax)
+   289    187.3 MiB      0.0 MiB           1           irisCircles = np.uint16(np.around(irisCircles))
+   290
+   291    187.3 MiB      0.0 MiB           1           irisX = irisY = irisR = -1
+   292    187.3 MiB      0.0 MiB           1           for candidate in irisCircles[0, :]:
+   293    187.3 MiB      0.0 MiB           1               tempIrisX, tempIrisY, tempIrisR = candidate[0], candidate[1],candidate[2]
+   294    187.3 MiB      0.0 MiB           1               curDist = np.sqrt(np.sum(np.square(np.array([tempIrisX, tempIrisY]) - np.array([pupilX, pupilY]))))
+   295    187.3 MiB      0.0 MiB           1               if curDist + pupilR >= tempIrisR:
+   296                                                         # wrong location for iris
+   297                                                         continue
+   298    187.3 MiB      0.0 MiB           1               irisX, irisY, irisR = tempIrisX, tempIrisY, tempIrisR
+   299    187.3 MiB      0.0 MiB           1               break
+   300
+   301    187.3 MiB      0.0 MiB           1           height = frame_gray.shape[0]
+   302    187.3 MiB      0.0 MiB           1           width = frame_gray.shape[1]
+   303                                                 return {
+   304    187.3 MiB      0.0 MiB           1               "pupilIrisRatio" : float(pupilR) / float(irisR),
+   305    187.3 MiB      0.0 MiB           1               "imgRatio": float(height) / float(width),
+   306                                                     "pupil": {
+   307    187.3 MiB      0.0 MiB           1                   "r" : float(pupilR) / float(width),
+   308    187.3 MiB      0.0 MiB           1                   "x" : float(pupilX) / float(width),
+   309    187.3 MiB      0.0 MiB           1                   "y": float(pupilY) / float(height),
+   310                                                     },
+   311                                                     "iris": {
+   312    187.3 MiB      0.0 MiB           1                   "r": float(irisR) / float(width),
+   313    187.3 MiB      0.0 MiB           1                   "x": float(irisX) / float(width),
+   314    187.3 MiB      0.0 MiB           1                   "y": float(irisY) / float(height),
+   315                                                     }
+   316                                                 }
+
+
+{'pupilIrisRatio': 0.4166666666666667, 'imgRatio': 0.7905405405405406, 'pupil': {'r': 0.05630630630630631, 'x': 0.5315315315315315, 'y': 0.49572649572649574}, 'iris': {'r': 0.13513513513513514, 'x': 0.5180180180180181, 'y': 0.5071225071225072}}
