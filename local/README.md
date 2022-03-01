@@ -20,5 +20,5 @@
     python normal_execute.py
 
 ## Output
-![alt text](https://raw.githubusercontent.com/cosmobiosis/vir291proj/main/local/execute_v1_improved/memory_obj.jpg)
 ![alt text](https://raw.githubusercontent.com/cosmobiosis/vir291proj/main/local/execute_v1_improved/stages.png)
+![alt text](https://raw.githubusercontent.com/cosmobiosis/vir291proj/main/local/execute_v1_improved/memory_obj.jpg)
