@@ -13,8 +13,8 @@
     conda install pympler
 
 ## Execute For Memory Profiling
-conda activate deepeye_env
-cd execute_v1_improved
-mprof run mprof_execute.py
-mprof plot
-python normal_execute.py
+    conda activate deepeye_env
+    cd execute_v1_improved
+    mprof run mprof_execute.py
+    mprof plot
+    python normal_execute.py
