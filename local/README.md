@@ -26,5 +26,6 @@
     mprof plot
 
 ## Output
-![alt text](https://raw.githubusercontent.com/cosmobiosis/vir291proj/main/local/execute_v1_improved/stages.png)
+![alt text](https://raw.githubusercontent.com/cosmobiosis/deepeye_291_virtualization_proj/main/local/execute_v1_improved/memory_one_run.png)
+![alt text](https://raw.githubusercontent.com/cosmobiosis/deepeye_291_virtualization_proj/main/local/execute_v2_final_pipeline/final_memory_stages.png)
 ![alt text](https://raw.githubusercontent.com/cosmobiosis/vir291proj/main/local/execute_v1_improved/memory_obj.jpg)
