@@ -12,12 +12,18 @@
     conda install memory_profiler
     conda install pympler
 
-## Execute For Memory Profiling
+## Execute For Memory Profiling (One Run)
     conda activate deepeye_env
     cd execute_v1_improved
     mprof run mprof_execute.py
     mprof plot
     python normal_execute.py
+
+## Execute For Memory Profiling (Multi-stage Garbage Collection)
+    conda activate deepeye_env
+    cd execute_v2_final_pipeline
+    python mprof_pipeline_execute.py
+    mprof plot
 
 ## Output
 ![alt text](https://raw.githubusercontent.com/cosmobiosis/vir291proj/main/local/execute_v1_improved/stages.png)

@@ -1,5 +1,6 @@
 from normal_funcs import *
 from pympler import asizeof
+import numpy
 
 def checkSize(label, my_object):
 	print(label, asizeof.asizeof(my_object))
@@ -12,6 +13,10 @@ def server():
 	frame, frame_gray = MakeFrameAndGrayFrame(npimg)
 	probability_mask = MakeProbabilityMask(eyetracker, frame_gray)
 	blob_locs = MakeBlobLocations(probability_mask)
+	print(isinstance(frame, numpy.ndarray))
+	print(isinstance(frame_gray, numpy.ndarray))
+	print(isinstance(numpy.array(blob_locs[0]), numpy.ndarray))
+	print(numpy.array(blob_locs[0]).tolist())
 	ret_json = ProcessSingleImage(frame, frame_gray, blob_locs)
 
 	print("============================")
