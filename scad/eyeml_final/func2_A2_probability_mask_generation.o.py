@@ -1,0 +1,243 @@
+#@ type: compute
+#@ parents:
+#@   - func2_A1_frame_gray_generation
+#@ dependents:
+#@   - func2_A3_blob_locations_generation
+#@ corunning:
+#@   mem1:
+#@     trans: mem1
+#@     type: rdma
+
+import pickle
+import random
+import numpy as np
+import json
+import base64
+from random import randrange
+import disaggrt.buffer_pool_lib as buffer_pool_lib
+from disaggrt.rdma_array import remote_array
+
+import cv2
+import tensorflow as tf
+import pathlib
+
+class Network:
+    def __init__(self, name, imgs, batch_size, is_training=True, reuse=None, layers=16, deep=2):
+        self.imgs = imgs
+        self.batch_size = batch_size
+        self.is_training = is_training
+        self.reuse = reuse
+        self.conv_counter = 0
+        self.atrous_counter = 0
+        self.transpose_counter = 0
+        self.stride_counter = 0
+        self.conv1x1_counter = 0
+        self.name = name
+        self.layers = layers
+        self.deep = deep
+        self.output = self.build_net()
+
+    def conv1x1(self, x, filters):
+        self.conv1x1_counter += 1
+        with tf.variable_scope('Last_conv1x1_%d' % (self.conv1x1_counter), reuse=self.reuse):
+            print('Last_conv1x1_%d' % (self.conv1x1_counter))
+
+            x = tf.layers.conv2d(x, filters, [1, 1], padding='SAME')
+
+        return x
+
+    def conv_unit(self, x, filters):
+        self.conv_counter += 1
+
+        with tf.variable_scope('conv_unit_%d' % (self.conv_counter), reuse=self.reuse):
+            print('conv_unit_%d' % (self.conv_counter))
+
+            x_orig = x
+
+            x = tf.layers.conv2d(x, filters, [3, 3], padding='SAME')
+            
+            x = tf.layers.batch_normalization(x, training=self.is_training, reuse=self.reuse, momentum=0.99,
+                                              renorm=True)
+            x = tf.nn.relu(x, name='relu')
+
+            x = tf.layers.conv2d(x, filters, [3, 3], padding='SAME')
+            
+            x = tf.layers.batch_normalization(x, training=self.is_training, reuse=self.reuse, momentum=0.99,
+                                              renorm=True)
+
+            x = tf.nn.relu(x + x_orig, name='relu')
+
+            return x
+
+    def stride_unit(self, x, filters_in, filters_out):
+        self.stride_counter += 1
+        with tf.variable_scope('stride_unit_%d' % (self.stride_counter), reuse=self.reuse):
+            print('stride_unit_%d' % (self.stride_counter))
+
+            x_orig = x
+
+            x = tf.layers.conv2d(x, filters_out, [3, 3], padding='SAME', strides=(2, 2))  # , strides=(2, 2)
+
+            x = tf.layers.batch_normalization(x, training=self.is_training, reuse=self.reuse, momentum=0.99,
+                                              renorm=True)
+
+            x = tf.nn.relu(x, name='relu')
+
+            x = tf.layers.conv2d(x, filters_out, [3, 3], padding='SAME')  # , strides=(2, 2)
+
+            x = tf.layers.batch_normalization(x, training=self.is_training, reuse=self.reuse, momentum=0.99,
+                                              renorm=True)
+
+            with tf.variable_scope('sub_add_up'):
+                x_orig = tf.layers.average_pooling2d(x_orig, [2, 2], [2, 2], padding='SAME')
+                x_orig = self.conv1x1(x_orig, filters_out)
+
+            x = tf.nn.relu(x + x_orig, name='relu')
+
+            return x
+
+    def atrous_unit(self, x, filters, dilatation):
+        x_orig = x
+
+        x = tf.layers.conv2d(x, filters, [3, 3], padding='SAME', dilation_rate=dilatation)
+        
+        x = tf.layers.batch_normalization(x, training=self.is_training, reuse=self.reuse, momentum=0.99,
+                                          renorm=True)
+
+        x = tf.nn.relu(x, name='relu')
+
+        x = tf.layers.conv2d(x, filters, [3, 3], padding='SAME', dilation_rate=dilatation)
+        
+        x = tf.layers.batch_normalization(x, training=self.is_training, reuse=self.reuse, momentum=0.99,
+                                          renorm=True)
+
+        x = tf.nn.relu(x + x_orig, name='relu')
+
+        return x
+
+    def aspp(self, x, filters):
+        self.atrous_counter += 1
+        with tf.variable_scope('atrous_unit_%d' % (self.atrous_counter), reuse=self.reuse):
+            print('atrous_unit_%d' % (self.atrous_counter))
+
+            x_1 = self.atrous_unit(x, filters, 4)
+            x_2 = self.atrous_unit(x, filters, 8)
+            x_3 = self.atrous_unit(x, filters, 16)
+            x_4 = self.conv_unit(x, filters)
+            x_5 = tf.layers.max_pooling2d(x, [2, 2], [2, 2], padding='SAME')
+            
+            shape_orig = tf.shape(x)
+            shape_pool = tf.shape(x_5)
+            
+            x_5 = tf.pad(x_5, [[0, 0], [shape_orig[1] - shape_pool[1], 0], [shape_orig[2] - shape_pool[2], 0], [0, 0]])
+
+            x_5 = tf.reshape(x_5, tf.shape(x))
+
+            x = tf.concat([x_1, x_2, x_3, x_4, x_5], 3)
+            
+            x = tf.layers.conv2d(x, filters, [1, 1], padding='SAME')
+
+            x = tf.layers.batch_normalization(x, training=self.is_training, reuse=self.reuse, momentum=0.99,
+                                              renorm=True)
+            x = tf.nn.relu(x, name='relu')
+            
+            return x
+
+    def build_net(self):
+        print(self.name)
+        with tf.variable_scope(self.name, reuse=self.reuse):
+            
+            x = tf.reshape(self.imgs, [1, tf.shape(self.imgs)[0], tf.shape(self.imgs)[1], 1])
+            orig_shapes = [tf.shape(self.imgs)[0], tf.shape(self.imgs)[1]]
+
+            filters_num = self.layers
+            x = self.conv_unit(x, filters_num)
+            x = self.stride_unit(x, filters_num, 2 * filters_num)
+            x = self.conv_unit(x, 2 * filters_num)
+            x = self.stride_unit(x, 2 * filters_num, 4 * filters_num)
+
+            for i in range(self.deep):
+                x = self.aspp(x, 4 * filters_num)
+
+            x = self.conv1x1(x, 2)
+            self.y_mlp = x
+            
+            x = tf.image.resize_bilinear(x, [orig_shapes[0], orig_shapes[1]])
+            
+            return x
+
+class DeepEye:
+    def __init__(self, model_path):
+
+        self.sess = tf.Session()
+
+        self.frame_input = tf.placeholder(tf.uint8, [288, 384])
+
+        self.input_reshaped_casted = tf.cast(self.frame_input, tf.float32) * (1. / 255)
+        self.model_path = model_path
+
+    def setNetwork(self, network_model):
+        deepupil_network = network_model
+
+        saver = tf.train.Saver(max_to_keep=0)
+
+        self.prob_mask = tf.nn.softmax(deepupil_network.output)
+
+        saver.restore(self.sess, str(pathlib.Path(__file__).parent) + self.model_path)
+        print("Model restored.")
+
+
+    def run(self, frame):
+        if frame.shape != (288, 384):
+
+            orig_size = frame.shape
+
+            frame = cv2.resize(frame, (384, 288), cv2.INTER_LINEAR)
+            prob_mask = self.sess.run(
+                self.prob_mask,
+                feed_dict={self.frame_input: frame})
+
+            prob_mask = cv2.resize(prob_mask[0, :, :, 0], (orig_size[1], orig_size[0]), cv2.INTER_LINEAR)
+        else:
+
+            prob_mask = self.sess.run(
+                self.prob_mask,
+                feed_dict={self.frame_input: frame})
+
+            prob_mask = prob_mask[0:, :, 0]
+
+        return prob_mask
+
+    def restart_tracker(self):
+
+        tf.reset_default_graph()
+        # plt.close('all')
+        self.sess.close()
+
+def main(params, action):
+    # setup
+    trans = action.get_transport('mem1', 'rdma')
+    trans.reg(buffer_pool_lib.buffer_size)
+    context_dict_in_b64 = params["func2_A1_frame_gray_generation"][0]['meta']
+    context_dict_in_byte = base64.b64decode(context_dict_in_b64)
+    context_dict = pickle.loads(context_dict_in_byte)
+
+    buffer_pool = buffer_pool_lib.buffer_pool({'mem1':trans}, context_dict["buffer_pool_metadata"])
+    load_np_frame_gray = remote_array(buffer_pool, metadata=context_dict["remote_frame_gray"])
+    frame_gray = load_np_frame_gray.materialize()
+
+    # loading data
+    eyetracker = DeepEye("/models/default.ckpt")
+    network = Network('Deep_eye', eyetracker.input_reshaped_casted, 1, is_training=False, reuse=False, deep=2, layers=16)
+    eyetracker.setNetwork(network)
+    probability_mask = eyetracker.run(frame_gray)
+
+    # update context
+    remote_input = remote_array(buffer_pool, input_ndarray=probability_mask, transport_name = 'mem1')
+    remote_input_metadata = remote_input.get_array_metadata()
+    context_dict = {}
+    context_dict["remote_probability_mask"] = remote_input_metadata
+    context_dict["buffer_pool_metadata"] = buffer_pool.get_buffer_metadata()
+
+    context_dict_in_byte = pickle.dumps(context_dict)
+    return {'meta': base64.b64encode(context_dict_in_byte).decode("ascii")}

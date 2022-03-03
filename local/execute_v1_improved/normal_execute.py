@@ -13,10 +13,6 @@ def server():
 	frame, frame_gray = MakeFrameAndGrayFrame(npimg)
 	probability_mask = MakeProbabilityMask(eyetracker, frame_gray)
 	blob_locs = MakeBlobLocations(probability_mask)
-	print(isinstance(frame, numpy.ndarray))
-	print(isinstance(frame_gray, numpy.ndarray))
-	print(isinstance(numpy.array(blob_locs[0]), numpy.ndarray))
-	print(numpy.array(blob_locs[0]).tolist())
 	ret_json = ProcessSingleImage(frame, frame_gray, blob_locs)
 
 	print("============================")
@@ -29,6 +25,7 @@ def server():
 	checkSize("probability_mask", probability_mask)
 	checkSize("blob_locs", blob_locs)
 	print("============================")
+
 	return ret_json
 
 if __name__ == "__main__":
