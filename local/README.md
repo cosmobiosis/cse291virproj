@@ -2,6 +2,7 @@
     Python 3.7
     Tensorflow 1.13
     OpenCV
+    Numpy
     Mprof
     Pympler
 
@@ -12,6 +13,7 @@
     conda install opencv
     conda install memory_profiler
     conda install pympler
+    conda install numpy
 
 ## Execute For Memory Profiling (One Run)
     conda activate deepeye_env
