@@ -28,6 +28,10 @@
     python mprof_pipeline_execute.py
     mprof plot
 
+## Client Draw Output Image
+    conda activate deepeye_env
+    python client_draw_iris_pupil.py
+
 ## Output
 ![alt text](https://raw.githubusercontent.com/cosmobiosis/deepeye_291_virtualization_proj/main/local/execute_v1_improved/memory_one_run.png)
 ![alt text](https://raw.githubusercontent.com/cosmobiosis/deepeye_291_virtualization_proj/main/local/execute_v2_final_pipeline/final_memory_stages.png)

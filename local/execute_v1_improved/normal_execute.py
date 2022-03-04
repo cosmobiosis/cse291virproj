@@ -6,7 +6,7 @@ def checkSize(label, my_object):
 	print(label, asizeof.asizeof(my_object))
 
 def server():
-	npimg = MakeNPImage("../samples/eye0.jpg")
+	npimg = MakeNPImage("../samples/eye6.jpg")
 	eyetracker = MakeDeepEye("/../models/default.ckpt")
 	network_model = MakeNetwork(eyetracker)
 	SetNetwork(eyetracker, network_model)
